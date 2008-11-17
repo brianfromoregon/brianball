@@ -210,7 +210,7 @@ public class BouncingBalls extends AbstractExample {
     }
 
     private void makeSolidWall(GrowingWall w) {
-        w.shape.m_userData = GROWING_WALL_ID;
+        w.shape.m_userData = SOLID_WALL_ID;
         w.body.setLinearVelocity(new Vec2(0,0));
         MassData md = new MassData();
         w.body.setMass(md);
