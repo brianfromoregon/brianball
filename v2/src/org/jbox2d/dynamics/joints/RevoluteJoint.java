@@ -163,6 +163,11 @@ public class RevoluteJoint extends Joint {
     	m_limitPositionImpulse = 0.0f;
     }
 
+    private Vec2 m_lastWarmStartingPivotForce = new Vec2(0.0f,0.0f);
+    private float m_lastWarmStartingMotorForce = 0.0f;
+    private float m_lastWarmStartingLimitForce = 0.0f;
+    private boolean m_warmStartingOld = true;
+    
     @Override
     public void solveVelocityConstraints(TimeStep step) {
     	Body b1 = m_body1;
@@ -174,8 +179,16 @@ public class RevoluteJoint extends Joint {
     	// Solve point-to-point constraint
     	Vec2 pivotCdot = b2.m_linearVelocity.add( Vec2.cross(b2.m_angularVelocity, r2).subLocal(b1.m_linearVelocity).subLocal(Vec2.cross(b1.m_angularVelocity, r1)));
     	Vec2 pivotForce = Mat22.mul(m_pivotMass, pivotCdot).mulLocal(-step.inv_dt);
-    	m_pivotForce.addLocal(pivotForce);
-
+    	//if (!step.warmStarting) m_pivotForce.set(pivotForce);
+    	//else m_pivotForce.addLocal(pivotForce);
+    	//if (step.warmStarting && (!m_warmStartingOld)) m_pivotForce = m_lastWarmStartingPivotForce;
+    	if (step.warmStarting) {
+    		m_pivotForce.addLocal(pivotForce);
+    		m_lastWarmStartingPivotForce.set(m_pivotForce);
+    	} else {
+    		m_pivotForce.set(m_lastWarmStartingPivotForce);
+    	}
+    	
     	Vec2 P = pivotForce.mul(step.dt);
     	b1.m_linearVelocity.x -= b1.m_invMass * P.x;
     	b1.m_linearVelocity.y -= b1.m_invMass * P.y;
@@ -191,7 +204,9 @@ public class RevoluteJoint extends Joint {
     		float oldMotorForce = m_motorForce;
     		m_motorForce = MathUtils.clamp(m_motorForce + motorForce, -m_maxMotorTorque, m_maxMotorTorque);
     		motorForce = m_motorForce - oldMotorForce;
-
+    		
+    		if (!step.warmStarting) m_motorForce = oldMotorForce;
+    		
     		float P2 = step.dt * motorForce;
     		b1.m_angularVelocity -= b1.m_invI * P2;
     		b2.m_angularVelocity += b2.m_invI * P2;
@@ -315,11 +330,11 @@ public class RevoluteJoint extends Joint {
     }
 
     public Vec2 getAnchor1() {
-    	return m_body1.getWorldPoint(m_localAnchor1);
+    	return m_body1.getWorldLocation(m_localAnchor1);
     }
 
     public Vec2 getAnchor2() {
-    	return m_body2.getWorldPoint(m_localAnchor2);
+    	return m_body2.getWorldLocation(m_localAnchor2);
     }
 
     public Vec2 getReactionForce() {

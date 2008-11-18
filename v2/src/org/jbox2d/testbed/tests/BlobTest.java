@@ -20,6 +20,7 @@
  * misrepresented as being the original software.
  * 3. This notice may not be removed or altered from any source distribution.
  */
+
 package org.jbox2d.testbed.tests;
 
 import org.jbox2d.collision.AABB;
@@ -32,72 +33,72 @@ import org.jbox2d.testbed.TestbedMain;
 import org.jbox2d.util.blob.*;
 
 public class BlobTest extends AbstractExample {
+	private boolean firstTime;
+	
+	public BlobTest(TestbedMain _parent) {
+		super(_parent);
+		firstTime = true;
+	}
+	
+	@Override
+	public void create() {
 
-    private boolean firstTime;
+		if (firstTime) {
+			setCamera(0.0f,10.0f,20.0f);
+			firstTime = false;
+		}
+		
+    	Body ground = null;
+		{
+			PolygonDef sd = new PolygonDef();
+			sd.setAsBox(50.0f, 0.2f);
 
-    public BlobTest(TestbedMain _parent) {
-        super(_parent);
-        firstTime = true;
-    }
-
-    @Override
-    public void create() {
-
-        if (firstTime) {
-            setCamera(0.0f, 10.0f, 20.0f);
-            firstTime = false;
-        }
-
-        Body ground = null;
-        {
-            PolygonDef sd = new PolygonDef();
-            sd.setAsBox(50.0f, 0.2f);
-
-            BodyDef bd = new BodyDef();
-            bd.position.set(0.0f, 0.0f);
-            ground = m_world.createBody(bd);
-            ground.createShape(sd);
-        }
-
-        BlobStructure structure = new SquareLatticeStructure();
-        structure.setSpringDamping(0.1f);
-        structure.setSpringFrequency(3f);
-        BlobContainer container = new CircularBlobContainer(new Vec2(0.0f, 12.0f), 6.0f);
-        /*
-        BlobMaker.pointRadius = 0.6f;
-        BlobMaker.pointFriction = 0.2f;
-        BlobMaker.pointDensity = 0.1f;
-        BlobMaker.createBlob(structure, container, m_world,
-        //scaleX   scaleY    shiftX  shiftY
-        1.5f,     1.25f,    0.0f,  0.15f);
-         */
-
-        container = new DonutBlobContainer(new Vec2(0.0f, 28.0f), 1.0f, 3.0f);
-        //container = new CircularBlobContainer(new Vec2(0.0f,28.0f),3.0f);
+			BodyDef bd = new BodyDef();
+			bd.position.set(0.0f, 0.0f);
+			ground = m_world.createBody(bd);
+			ground.createShape(sd);
+		}
+		
+		BlobStructure structure = new SquareLatticeStructure();
+		structure.setSpringDamping(0.1f);
+		structure.setSpringFrequency(3f);
+		BlobContainer container = new CircularBlobContainer(new Vec2(0.0f,12.0f),6.0f);
+		/*
+		BlobMaker.pointRadius = 0.6f;
+		BlobMaker.pointFriction = 0.2f;
+		BlobMaker.pointDensity = 0.1f;
+		BlobMaker.createBlob(structure, container, m_world,
+							//scaleX   scaleY    shiftX  shiftY
+							1.5f,     1.25f,    0.0f,  0.15f);
+		*/
+		
+		container = new DonutBlobContainer(new Vec2(0.0f,28.0f),1.0f,3.0f);
+		//container = new CircularBlobContainer(new Vec2(0.0f,28.0f),3.0f);
 		/*container = new BlobContainer(){
-        AABB aabb = new AABB(new Vec2(-11f,10f), new Vec2(-8f,15f));
-        public boolean containsPoint(Vec2 p) {
-        if (p.x < aabb.lowerBound.x || p.x > aabb.upperBound.x ||
-        p.y < aabb.lowerBound.y || p.y > aabb.upperBound.y)
-        return false;
-        return true;
-        }
+			AABB aabb = new AABB(new Vec2(-11f,10f), new Vec2(-8f,15f));
+			public boolean containsPoint(Vec2 p) { 
+				if (p.x < aabb.lowerBound.x || p.x > aabb.upperBound.x ||
+					p.y < aabb.lowerBound.y || p.y > aabb.upperBound.y)
+					return false;
+				return true;
+			}
 
-        public AABB getAABB() {
-        return aabb;
-        }
-        };*/
-        structure.setSpringFrequency(30.0f);
-        BlobMaker.pointRadius = 0.2f;
-        BlobMaker.createBlob(structure, container, m_world,
-                //scaleX   scaleY    shiftX  shiftY
-                0.3f, 0.4f, 0.2f, 0.3f);
+			public AABB getAABB() {
+				return aabb;
+			}
+		};*/
+		structure.setSpringFrequency(30.0f);
+		BlobMaker.pointRadius = 0.2f;
+		BlobMaker.createBlob(structure, container, m_world,
+				//scaleX   scaleY    shiftX  shiftY
+				0.3f,      0.4f,     0.2f,  0.3f);
+		
 
+	}
 
-    }
+	@Override
+	public String getName() {
+		return "BlobMaker Test";
+	}
 
-    @Override
-    public String getName() {
-        return "BlobMaker Test";
-    }
 }

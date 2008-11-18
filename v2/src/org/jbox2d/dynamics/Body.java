@@ -23,9 +23,12 @@
 
 package org.jbox2d.dynamics;
 
+import org.jbox2d.collision.EdgeChainDef;
+import org.jbox2d.collision.EdgeShape;
 import org.jbox2d.collision.MassData;
 import org.jbox2d.collision.Shape;
 import org.jbox2d.collision.ShapeDef;
+import org.jbox2d.collision.ShapeType;
 import org.jbox2d.common.*;
 import org.jbox2d.dynamics.contacts.ContactEdge;
 import org.jbox2d.dynamics.joints.JointEdge;
@@ -100,6 +103,10 @@ public class Body {
 	 * be set there instead. 
 	 */
 	public Object m_userData;
+	
+	public Body() {
+		
+	}
 
 	/**
 	 * Should not be called by user, as it will not
@@ -180,6 +187,18 @@ public class Body {
 		m_shapeCount = 0;
 		
 	}
+	
+	private float connectEdges(EdgeShape s1, EdgeShape s2, float angle1) {
+		float angle2 = (float)Math.atan2(s2.getDirectionVector().y, s2.getDirectionVector().x);
+		Vec2 core = s2.getDirectionVector().mul( (float)Math.tan((angle2 - angle1) * 0.5f)) ;
+		core =  (core.sub(s2.getNormalVector())).mul(Settings.toiSlop).add(s2.getVertex1());
+		Vec2 cornerDir = s1.getDirectionVector().add(s2.getDirectionVector());
+		cornerDir.normalize();
+		boolean convex = Vec2.dot(s1.getDirectionVector(), s2.getNormalVector()) > 0.0f;
+		s1.setNextEdge(s2, core, cornerDir, convex);
+		s2.setPrevEdge(s1, core, cornerDir, convex);
+		return angle2;
+	}
 
 	/**
 	 *  Creates a shape and attach it to this body.
@@ -192,6 +211,52 @@ public class Body {
 		if (m_world.m_lock == true){
 			return null;
 		}
+		
+		// TODO: Decide on a better place to initialize edgeShapes. (b2Shape::Create() can't
+		//       return more than one shape to add to parent body... maybe it should add
+		//       shapes directly to the body instead of returning them?)
+		if (def.type == ShapeType.EDGE_SHAPE) {
+			EdgeChainDef edgeDef = (EdgeChainDef)def;
+			Vec2 v1 = new Vec2();
+			Vec2 v2 = new Vec2();
+			int i = 0;
+			
+			if (edgeDef.isLoop()) {
+				v1 = edgeDef.getVertices().get(edgeDef.getVertexCount()-1);
+				i = 0;
+			} else {
+				v1 = edgeDef.getVertices().get(0);
+				i = 1;
+			}
+			
+			EdgeShape s0 = null;
+			EdgeShape s1 = null;
+			EdgeShape s2 = null;
+			float angle = 0.0f;
+			for (; i < edgeDef.getVertexCount(); i++) {
+				v2 = edgeDef.getVertices().get(i);
+				
+				s2 = new EdgeShape(v1, v2, def);
+				s2.m_next = m_shapeList;
+				m_shapeList = s2;
+				++m_shapeCount;
+				s2.m_body = this;
+				s2.createProxy(m_world.m_broadPhase, m_xf);
+				s2.updateSweepRadius(m_sweep.localCenter);
+				
+				if (s1 == null) {
+					s0 = s2;
+					angle = (float)Math.atan2(s2.getDirectionVector().y, s2.getDirectionVector().x);
+				} else {
+					angle = connectEdges(s1, s2, angle);
+				}
+				s1 = s2;
+				v1 = v2;
+			}
+			if (edgeDef.isLoop()) connectEdges(s1, s0, angle);
+			return s0;
+		}
+
 
 		Shape s = Shape.create(def);
 
@@ -456,8 +521,17 @@ public class Body {
 	}
 
 	/**
+	 * You probably don't want to use this
+	 * function.  What you really want is getWorldCenter(),
+	 * which returns the center of mass (which actually has
+	 * some physical significance).
+	 * <p>
+	 * Just in case you do want to use this, 
 	 * Get a copy of the world body origin position.  This
 	 * is not necessarily the same as the center of mass.
+	 * In fact, it's not anything in particular.  Just a
+	 * point.
+	 * <p>
 	 * @return the world position of the body's origin.
 	 */
 	public Vec2 getPosition(){
@@ -477,7 +551,10 @@ public class Body {
 		return m_sweep.c.clone();
 	}
 
-	/** Get a copy of the local position of the center of mass. */
+	/** 
+	 * Get local position of the center of mass.
+	 * @return local position of the center of mass
+	 */
 	public Vec2 getLocalCenter(){
 		return m_sweep.localCenter.clone();
 	}
@@ -573,17 +650,37 @@ public class Body {
 	 * @param localPoint a point on the body measured relative the the body's origin.
 	 * @return the same point expressed in world coordinates.
 	 */
-	public Vec2 getWorldPoint(Vec2 localPoint){
+	public Vec2 getWorldLocation(Vec2 localPoint){
 		return XForm.mul(m_xf, localPoint);
+	}
+	
+	/**
+	 * Get the world coordinates of a point given the local coordinates.
+	 * @param localPoint a point on the body measured relative the the body's origin.
+	 * @return the same point expressed in world coordinates.
+	 * @deprecated Use getWorldLocation instead (clearer naming convention)
+	 */
+	public Vec2 getWorldPoint(Vec2 localPoint) {
+		return getWorldLocation(localPoint);
 	}
 
 	/**
 	 * Get the world coordinates of a vector given the local coordinates.
 	 * @param localVector a vector fixed in the body.
 	 * @return the same vector expressed in world coordinates.
+	 * @deprecated Use getWorldDirection instead (clearer naming convention)
 	 */
 	public Vec2 getWorldVector(Vec2 localVector){
-		return Mat22.mul(m_xf.R, localVector);
+		return getWorldDirection(localVector);
+	}
+	
+	/**
+	 * Get the world coordinates of a direction given the local direction.
+	 * @param localDirection a vector fixed in the body.
+	 * @return the same vector expressed in world coordinates.
+	 */
+	public Vec2 getWorldDirection(Vec2 localDirection) {
+		return Mat22.mul(m_xf.R, localDirection);
 	}
 
 	/**
@@ -776,7 +873,7 @@ public class Body {
 	 * @return the world velocity of a point.
 	 */
 	public Vec2 getLinearVelocityFromLocalPoint(Vec2 localPoint) {
-		return getLinearVelocityFromWorldPoint(getWorldPoint(localPoint));
+		return getLinearVelocityFromWorldPoint(getWorldLocation(localPoint));
 	}
 	
 	/**

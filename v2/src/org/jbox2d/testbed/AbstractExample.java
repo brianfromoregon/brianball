@@ -309,7 +309,7 @@ public abstract class AbstractExample {
 
 		if (m_mouseJoint != null) {
 			Body body = m_mouseJoint.m_body2;
-			Vec2 p1 = body.getWorldPoint(m_mouseJoint.m_localAnchor);
+			Vec2 p1 = body.getWorldLocation(m_mouseJoint.m_localAnchor);
 			Vec2 p2 = m_mouseJoint.m_target;
 
 			m_debugDraw.drawSegment(p1, p2, new Color3f(255.0f,255.0f,255.0f));
@@ -372,6 +372,7 @@ public abstract class AbstractExample {
 		printInstructions();
 		
 		pmouseScreen.set(mouseScreen);
+		
 		postStep();
 
 		//Should reset newKeyDown after postStep in case it needs to be used there
@@ -505,6 +506,7 @@ public abstract class AbstractExample {
      * @param p The screen location that the mouse is down at.
      */
     public void mouseDown(Vec2 p) {
+    	
     	if (parent.shiftKey) {
     		spawnBomb(m_debugDraw.screenToWorld(p));
     		return;
@@ -513,7 +515,7 @@ public abstract class AbstractExample {
     	p = m_debugDraw.screenToWorld(p);
     	lastMouseDown = p;
     	
-    	assert m_mouseJoint == null;
+    	if (m_mouseJoint != null) return;
 
         // Make a small box.
 
@@ -541,7 +543,9 @@ public abstract class AbstractExample {
             md.body1 = m_world.getGroundBody();
             md.body2 = body;
             md.target.set(p);
-            md.maxForce = 1000.0f * body.m_mass;
+            md.maxForce = 10000.0f * body.m_mass;
+            md.frequencyHz = 20.0f;
+            md.dampingRatio = 0.9f;
             m_mouseJoint = (MouseJoint) m_world.createJoint(md);
             body.wakeUp();
         }
@@ -564,12 +568,12 @@ public abstract class AbstractExample {
         if (somethingHappened == false)
         {
             eventlessClick(lastMouseDown);
-        }
+    }
     }
 
     protected void eventlessClick(Vec2 p)
     {
-        
+
     }
 
     /**
@@ -616,13 +620,13 @@ public abstract class AbstractExample {
 	public void boundaryViolated(Body body) {
 		
 	}
-
+    
     public void contact(ContactPoint point)
     {
-        
+    
     }
-    
-    
+
+
 	/* ==== Concrete listener classes below ====
 	 * Concrete tests may override these classes, just
 	 * remember to call m_world.setListener(newListener)
