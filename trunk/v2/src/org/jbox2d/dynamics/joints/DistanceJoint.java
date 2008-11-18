@@ -68,15 +68,31 @@ public class DistanceJoint extends Joint {
     	m_bias = 0.0f;
     	m_inv_dt = 0.0f;
     }
+    
+    public void setFrequency(float hz) {
+    	m_frequencyHz = hz;
+    }
+    
+    public float getFrequency() {
+    	return m_frequencyHz;
+    }
+    
+    public void setDampingRatio(float damp) {
+    	m_dampingRatio = damp;
+    }
+    
+    public float getDampingRatio() {
+    	return m_dampingRatio;
+    }
 
     @Override
     public Vec2 getAnchor1() {
-    	return m_body1.getWorldPoint(m_localAnchor1);
+    	return m_body1.getWorldLocation(m_localAnchor1);
     }
 
     @Override
     public Vec2 getAnchor2() {
-        return m_body2.getWorldPoint(m_localAnchor2);
+        return m_body2.getWorldLocation(m_localAnchor2);
     }
 
     public Vec2 getReactionForce() {

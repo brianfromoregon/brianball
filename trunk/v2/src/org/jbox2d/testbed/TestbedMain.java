@@ -27,6 +27,7 @@ import java.awt.event.MouseWheelEvent;
 import java.awt.event.MouseWheelListener;
 import java.util.ArrayList;
 
+import net.bcharris.brianball.BouncingBalls;
 import org.jbox2d.common.Vec2;
 import org.jbox2d.dynamics.DebugDraw;
 import org.jbox2d.testbed.tests.*;
@@ -52,6 +53,8 @@ import processing.core.PApplet;
  *
  */
 public class TestbedMain extends PApplet {
+	/** I let Eclipse generate this to shut it up about its warnings. */
+	private static final long serialVersionUID = 1712524774634907635L;
 	/** The list of registered examples */
 	protected ArrayList<AbstractExample> tests = new ArrayList<AbstractExample>(0);
 	/** Currently running example */
@@ -114,17 +117,28 @@ public class TestbedMain extends PApplet {
     	frameRate(targetFPS);
     	g = new ProcessingDebugDraw(this);
     	//smooth();
-//    	for (int i=0; i<100; ++i) {
-//    		this.requestFocus();
-//    	}
+    	for (int i=0; i<100; ++i) {
+    		this.requestFocus();
+    	}
     	/* Register the examples */
     	// Simple functionality examples
+    	//registerExample(new SensorTest(this));
+    	//
+    	
+    	//*
     	registerExample(new BouncingBalls(this));
-    	registerExample(new SensorTest(this));
-    	registerExample(new BlobTest(this));
-    	//registerExample(new SpringRestitutionTest(this));
-    	registerExample(new RestitutionCannon(this));
+    	registerExample(new EdgeTest(this));
+    	registerExample(new CCDTest(this));
+    	//registerExample(new Motox(this));
+    	registerExample(new BlobTest3(this));
+    	registerExample(new BlobTest4(this));
+    	registerExample(new BlobTest5(this));
+    	registerExample(new BlobTest6(this));
+    	registerExample(new BlobTest2(this));
+    	registerExample(new BlobTest7(this));
+    	registerExample(new LiquidTest(this));
     	registerExample(new BipedTest(this));
+    	registerExample(new SpriteBinding(this));
     	registerExample(new Pulleys(this));
     	registerExample(new Overhang(this));
     	registerExample(new VaryingRestitution(this));
@@ -136,20 +150,21 @@ public class TestbedMain extends PApplet {
     	registerExample(new Chain(this));
     	registerExample(new Bridge(this));
     	registerExample(new Gears(this));
+    	registerExample(new RestitutionCannon(this));
+    	registerExample(new BlobTest(this));
     	
     	// Shape drawing demo
-    	registerExample(new ShapeDrawing(this));
+//    	registerExample(new ShapeDrawing(this));
     	
     	// Stress tests
-    	registerExample(new Pyramid(this));
-    	registerExample(new DominoTower(this));
-    	registerExample(new Circles(this));
+//    	registerExample(new Pyramid(this));
+//    	registerExample(new DominoTower(this));
+//    	registerExample(new Circles(this));
     	
     	// Bug tests
-    	registerExample(new CCDTest(this));
-    	registerExample(new DistanceTest(this));
+//    	registerExample(new DistanceTest(this));
     	//registerExample(new BugTest(this));
-
+//*/
     	//Set up the mouse wheel listener to control zooming
     	addMouseWheelListener(new MouseWheelListener() {
             public void mouseWheelMoved(MouseWheelEvent e) {
@@ -227,7 +242,7 @@ public class TestbedMain extends PApplet {
 
 
     		/* ==== Vec2 creation and FPS reporting ==== */
-    		if (currentTest.settings.drawStats) {
+    		if (currentTest.settings.drawStats && Vec2.watchCreations) {
     			g.drawString(5, currentTest.m_textLine, "Vec2 creations/frame: "+Vec2.creationCount, AbstractExample.white);
     			currentTest.m_textLine += AbstractExample.textLineHeight;
     		}

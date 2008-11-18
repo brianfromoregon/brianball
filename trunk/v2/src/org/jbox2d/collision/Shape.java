@@ -272,12 +272,21 @@ public abstract class Shape {
         else if (def.type == ShapeType.POLYGON_SHAPE) {
             return new PolygonShape(def);
         }
+        else if (def.type == ShapeType.POINT_SHAPE) {
+        	return new PointShape(def);
+        }
         assert false;
         return null;
     }
     
     /** Internal */
     public static void destroy(Shape s) {
+        if (s.getType() == ShapeType.EDGE_SHAPE) {
+        	EdgeShape edge = (EdgeShape)s;
+        	if (edge.m_nextEdge != null) edge.m_nextEdge.m_prevEdge = null; 
+        	if (edge.m_prevEdge != null) edge.m_prevEdge.m_nextEdge = null;
+        }
+        
         s.destructor();
     }
 

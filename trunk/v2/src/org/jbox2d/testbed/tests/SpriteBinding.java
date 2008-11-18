@@ -81,6 +81,11 @@ public class SpriteBinding extends AbstractExample {
         
         // Load the image from a file
         myImage = parent.loadImage("noise.png");
+        if (myImage == null)
+        {
+            System.err.println("Could not load noise.png");
+            return;
+        }
         
         // Zero offset (center image on center of object)
         Vec2 localOffset = new Vec2(0.0f, 0f);

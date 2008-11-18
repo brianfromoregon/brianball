@@ -30,6 +30,7 @@ import org.jbox2d.collision.ContactID;
 import org.jbox2d.collision.Manifold;
 import org.jbox2d.collision.ManifoldPoint;
 import org.jbox2d.common.*;
+import org.jbox2d.dynamics.contacts.CircleContact;
 import org.jbox2d.dynamics.contacts.Contact;
 import org.jbox2d.dynamics.contacts.ContactConstraint;
 import org.jbox2d.dynamics.contacts.ContactConstraintPoint;
@@ -156,7 +157,7 @@ public class Island {
     			}
     		}
     	}
-    	
+
     	ContactSolver contactSolver = new ContactSolver(step, m_contacts, m_contactCount);
 
     	// Initialize velocity constraints.
@@ -174,6 +175,7 @@ public class Island {
     			m_joints[j].solveVelocityConstraints(step);
     		}
     	}
+
 
     	// Post-solve (store impulses for warm starting).
     	contactSolver.finalizeVelocityConstraints();
@@ -203,11 +205,13 @@ public class Island {
     	if (correctPositions) {
     		// Initialize position constraints.
     		// Contacts don't need initialization.
-    		for (int i = 0; i < m_jointCount; ++i) {
+
+      		for (int i = 0; i < m_jointCount; ++i) {
     			m_joints[i].initPositionConstraints();
     		}
 
-    		// Iterate over constraints.
+
+        	// Iterate over constraints.
     		for (m_positionIterationCount = 0; m_positionIterationCount < step.maxIterations; ++m_positionIterationCount) {
     			boolean contactsOkay = contactSolver.solvePositionConstraints(Settings.contactBaumgarte);
 
@@ -221,6 +225,7 @@ public class Island {
     				break;
     			}
     		}
+
     	}
 
     	report(contactSolver.m_constraints);
@@ -262,16 +267,33 @@ public class Island {
     			}
     		}
     	}
+    	
     }
 
     public void solveTOI(TimeStep subStep) {
     	ContactSolver contactSolver = new ContactSolver(subStep, m_contacts, m_contactCount);
 
-    	// No warm starting needed for TOI events.
-
+    	// No warm starting needed for TOI contact events.
+    	
+    	// For joints, intialize with the last full step warm starting values
+    	if (Settings.maxTOIJointsPerIsland > 0) {
+    		subStep.warmStarting = true;
+    		//for (int i=0; i<m_jointCount; ++i) {
+    		for (int i = m_jointCount-1; i >= 0; --i) {
+    			m_joints[i].initVelocityConstraints(subStep);
+    		}
+    		
+    		// ...but don't update the warm starting value during solving
+    		subStep.warmStarting = false;
+    	}
+    	    	
     	// Solve velocity constraints.
     	for (int i = 0; i < subStep.maxIterations; ++i) {
     		contactSolver.solveVelocityConstraints();
+    		//for (int j = 0; j < m_jointCount; ++j) {
+    		for (int j = m_jointCount-1; j >= 0; --j) {
+    			m_joints[j].solveVelocityConstraints(subStep);
+    		}
     	}
 
     	// Don't store the TOI contact forces for warm starting
@@ -305,9 +327,18 @@ public class Island {
     	final float k_toiBaumgarte = 0.75f;
     	for (int i = 0; i < subStep.maxIterations; ++i) {
     		boolean contactsOkay = contactSolver.solvePositionConstraints(k_toiBaumgarte);
-    		if (contactsOkay) {
-    			break;
-    		}
+    		
+    		boolean jointsOkay = true;
+    		//for (int j = 0; j < m_jointCount; ++j) {
+    		for (int j = m_jointCount-1; j >= 0; --j) {
+				boolean jointOkay = m_joints[j].solvePositionConstraints();
+				//System.out.println("iter "+i + ": "+j + " " + jointOkay);
+				jointsOkay = jointsOkay && jointOkay;
+			}
+
+			if (contactsOkay && jointsOkay) {
+				break;
+			}
     	}
 
     	report(contactSolver.m_constraints);

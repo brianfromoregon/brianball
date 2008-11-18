@@ -30,9 +30,11 @@ import org.jbox2d.common.Color3f;
 import org.jbox2d.collision.AABB;
 import org.jbox2d.collision.BroadPhase;
 import org.jbox2d.collision.CircleShape;
+import org.jbox2d.collision.EdgeShape;
 import org.jbox2d.collision.OBB;
 import org.jbox2d.collision.Pair;
 import org.jbox2d.collision.PairManager;
+import org.jbox2d.collision.PointShape;
 import org.jbox2d.collision.PolygonShape;
 import org.jbox2d.collision.Proxy;
 import org.jbox2d.collision.Shape;
@@ -42,6 +44,7 @@ import org.jbox2d.common.*;
 import org.jbox2d.dynamics.contacts.Contact;
 import org.jbox2d.dynamics.contacts.ContactEdge;
 import org.jbox2d.dynamics.joints.*;
+import org.jbox2d.testbed.tests.LiquidTest;
 
 
 
@@ -98,9 +101,19 @@ public class World {
 	ContactListener m_contactListener;
 	DebugDraw m_debugDraw;
 	
+	boolean m_drawDebugData;
+	
 	private float m_inv_dt0;
 
 	private ArrayList<Steppable> postStepList;
+	
+	public void setDrawDebugData(boolean tf) {
+		m_drawDebugData = tf;
+	}
+	
+	public boolean isDrawingDebugData() {
+		return m_drawDebugData;
+	}
 
 	/** Get the number of bodies. */
 	public int getBodyCount() {
@@ -193,6 +206,7 @@ public class World {
         BodyDef bd = new BodyDef();
         m_groundBody = createBody(bd);
         postStepList = new ArrayList<Steppable>();
+        setDrawDebugData(true);
     }
 
 	/** Register a destruction listener. */
@@ -226,6 +240,10 @@ public class World {
 	 */
     public void setDebugDraw(DebugDraw debugDraw) {
     	m_debugDraw = debugDraw;
+    }
+    
+    public DebugDraw getDebugDraw() {
+    	return m_debugDraw;
     }
     
 	
@@ -509,7 +527,7 @@ public class World {
      * @param s
      */
     public void unregisterPostStep(Steppable s) {
-    	postStepList.remove(s);
+    	if (postStepList != null) postStepList.remove(s);
     }
     
     /** Re-filter a shape. This re-runs contact filtering on a shape. */
@@ -687,9 +705,18 @@ public class World {
     /** For internal use: find TOI contacts and solve them. */
     public void solveTOI(TimeStep step) {
     	// Reserve an island and a stack for TOI island solution.
-    	Island island = new Island(m_bodyCount, Settings.maxTOIContactsPerIsland, 0, m_contactListener);
-    	int stackSize = m_bodyCount;
-    	Body[] stack = new Body[stackSize];
+    	Island island = new Island(m_bodyCount, Settings.maxTOIContactsPerIsland, Settings.maxTOIJointsPerIsland, m_contactListener);
+    	
+    	//Simple one pass queue
+    	//Relies on the fact that we're only making one pass
+    	//through and each body can only be pushed/popped once.
+    	//To push: 
+    	//  queue[queueStart+queueSize++] = newElement
+    	//To pop: 
+    	//	poppedElement = queue[queueStart++];
+		//  --queueSize;
+    	int queueCapacity = m_bodyCount;
+    	Body[] queue = new Body[queueCapacity];
 
     	for (Body b = m_bodyList; b != null; b = b.m_next) {
     		b.m_flags &= ~Body.e_islandFlag;
@@ -700,6 +727,10 @@ public class World {
     		// Invalidate TOI
     		c.m_flags &= ~(Contact.e_toiFlag | Contact.e_islandFlag);
     	}
+    	
+    	for (Joint j = m_jointList; j != null; j = j.m_next) {
+            j.m_islandFlag = false;
+        }
 
     	// Find TOI events and solve them.
     	while (true) {
@@ -742,6 +773,7 @@ public class World {
 
     				// Compute the time of impact.
     				toi = TOI.timeOfImpact(c.m_shape1, b1.m_sweep, c.m_shape2, b2.m_sweep);
+    				//System.out.println(toi);
     				assert(0.0f <= toi && toi <= 1.0f);
     				
     				if (toi > 0.0f && toi < 1.0f) {
@@ -756,6 +788,7 @@ public class World {
     				// This is the minimum TOI found so far.
     				minContact = c;
     				minTOI = toi;
+    				
     			}
 
         		
@@ -765,7 +798,7 @@ public class World {
     			// No more TOI events. Done!
     			break;
     		}
-
+    		
     		// Advance the bodies to the TOI.
     		Shape s1 = minContact.getShape1();
     		Shape s2 = minContact.getShape2();
@@ -790,18 +823,22 @@ public class World {
     			seed = b2;
     		}
 
-    		// Reset island and stack.
+    		// Reset island and queue.
     		island.clear();
-    		int stackCount = 0;
-    		stack[stackCount++] = seed;
+    		//int stackCount = 0;
+    		int queueStart = 0; //starting index for queue
+        	int queueSize = 0;  //elements in queue
+    		queue[queueStart+queueSize++] = seed;
     		seed.m_flags |= Body.e_islandFlag;
 
-    		// Perform a depth first search (DFS) on the contact graph.
-    		while (stackCount > 0) {
-    			// Grab the next body off the stack and add it to the island.
-    			Body b = stack[--stackCount];
+    		// Perform a breadth first search (BFS) on the contact/joint graph.
+    		while (queueSize > 0) {
+    			// Grab the head body off the queue and add it to the island.
+    			Body b = queue[queueStart++];
+    			--queueSize;
+    			
     			island.add(b);
-
+    			
     			// Make sure the body is awake.
     			b.m_flags &= ~Body.e_sleepFlag;
 
@@ -844,14 +881,47 @@ public class World {
     					other.wakeUp();
     				}
 
-    				assert(stackCount < stackSize);
-    				stack[stackCount++] = other;
+    				//push to the queue
+    				assert(queueSize < queueCapacity);
+    				queue[queueStart+queueSize++] = other;
     				other.m_flags |= Body.e_islandFlag;
 
     			}
+    			
+    			// Search all joints connect to this body.
+                for ( JointEdge jn = b.m_jointList; jn != null; jn = jn.next) {
+                	if (island.m_jointCount == island.m_jointCapacity) {
+    					continue;
+    				}
+                	
+                	if (jn.joint.m_islandFlag == true) {
+                        continue;
+                    }
+
+                    island.add(jn.joint);
+
+                    jn.joint.m_islandFlag = true;
+
+                    Body other = jn.other;
+                    if ((other.m_flags & Body.e_islandFlag) > 0) {
+                        continue;
+                    }
+                    
+                    if (other.isStatic() == false) {
+                    	//System.out.println(minTOI);
+                    	other.advance(minTOI);
+                    	other.wakeUp();
+                    }
+
+                    assert (queueSize < queueCapacity);
+                    queue[queueStart+queueSize++] = other;
+                    other.m_flags |= Body.e_islandFlag;
+                }
+    			
     		}
 
     		TimeStep subStep = new TimeStep();
+    		subStep.warmStarting = false;
     		subStep.dt = (1.0f - minTOI) * step.dt;
     		assert(subStep.dt > Settings.EPSILON);
     		subStep.inv_dt = 1.0f / subStep.dt;
@@ -888,6 +958,7 @@ public class World {
     			for (ContactEdge cn = b.m_contactList; cn != null; cn = cn.next) {
     				cn.contact.m_flags &= ~Contact.e_toiFlag;
     			}
+    			
     		}
 
     		for (int i = 0; i < island.m_contactCount; ++i) {
@@ -895,6 +966,11 @@ public class World {
 
     			Contact c = island.m_contacts[i];
     			c.m_flags &= ~(Contact.e_toiFlag | Contact.e_islandFlag);
+    		}
+    		
+    		for (int i=0; i < island.m_jointCount; ++i) {
+    			Joint j = island.m_joints[i];
+    			j.m_islandFlag = false;
     		}
 
     		// Commit shape proxy movements to the broad-phase so that new contacts are created.
@@ -914,12 +990,25 @@ public class World {
     			Vec2 center = XForm.mul(xf, circle.getLocalPosition());
     			float radius = circle.getRadius();
     			Vec2 axis = xf.R.col1;
-
+    			
+    			if (circle.getUserData() != null && circle.getUserData() == LiquidTest.LIQUID_INT) {
+    				m_debugDraw.drawSegment(center, center.add(new Vec2(0.01f,0.01f)), new Color3f(80.0f,80.0f,255f));
+    				return;
+    			}
+    			
     			m_debugDraw.drawSolidCircle(center, radius, axis, color);
 
     			if (core) {
     				m_debugDraw.drawCircle(center, radius - Settings.toiSlop, coreColor);
     			}
+    	} else if (shape.getType() == ShapeType.POINT_SHAPE) {
+    			PointShape point = (PointShape)shape;
+
+				Vec2 center = XForm.mul(xf, point.getLocalPosition());
+
+				//m_debugDraw.drawSolidCircle(center, radius, axis, color);
+				m_debugDraw.drawPoint(center, 0.0f, color);
+
     	} else if (shape.getType() == ShapeType.POLYGON_SHAPE) {
     			PolygonShape poly = (PolygonShape)shape;
     			int vertexCount = poly.getVertexCount();
@@ -941,6 +1030,14 @@ public class World {
     				}
     				m_debugDraw.drawPolygon(vertices, vertexCount, coreColor);
     			}
+    		
+    	} else if (shape.getType() == ShapeType.EDGE_SHAPE) {
+    		EdgeShape edge = (EdgeShape) shape;
+    		m_debugDraw.drawSegment(XForm.mul(xf, edge.getVertex1()), XForm.mul(xf, edge.getVertex2()), color);
+    		
+			if (core) {
+				m_debugDraw.drawSegment(XForm.mul(xf, edge.getCoreVertex1()), XForm.mul(xf, edge.getCoreVertex2()), coreColor);
+			}
     		
     	}
     }
@@ -971,6 +1068,16 @@ public class World {
     		m_debugDraw.drawSegment(s1, s2, color);
     	} else if (type == JointType.MOUSE_JOINT) {
     		//Don't draw mouse joint
+    	} else if (type == JointType.CONSTANT_VOLUME_JOINT) {
+    		ConstantVolumeJoint cvj = (ConstantVolumeJoint)joint;
+    		Body[] bodies = cvj.getBodies();
+    		for (int i=0; i<bodies.length; ++i) {
+    			int next = (i==bodies.length-1)?0:i+1;
+    			Vec2 first = bodies[i].getWorldCenter();
+    			Vec2 nextV = bodies[next].getWorldCenter();
+    			m_debugDraw.drawSegment(first, nextV, color);
+    		}
+    		
     	} else {
     		m_debugDraw.drawSegment(x1, p1, color);
     		m_debugDraw.drawSegment(p1, p2, color);
@@ -980,20 +1087,22 @@ public class World {
 
     /** For internal use */
     public void drawDebugData() {
-    	if (m_debugDraw == null) {
+    	if (m_debugDraw == null || m_drawDebugData == false) {
     		return;
     	}
-
+    	
     	int flags = m_debugDraw.getFlags();
 
     	if ( (flags & DebugDraw.e_shapeBit) != 0) {
-    		
+
     		boolean core = (flags & DebugDraw.e_coreShapeBit) == DebugDraw.e_coreShapeBit;
 
     		for (Body b = m_bodyList; b != null; b = b.getNext()) {
     			XForm xf = b.getXForm();
+
     			for (Shape s = b.getShapeList(); s != null; s = s.getNext()) {
-    				if (s.isSensor()) continue;
+    				//if (s.isSensor()) continue;
+    				
     				if (b.isStatic()) {
     					drawShape(s, xf, new Color3f(255f*0.5f, 255f*0.9f, 255f*0.5f), core);
     				}

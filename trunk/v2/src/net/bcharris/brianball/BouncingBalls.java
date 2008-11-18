@@ -1,5 +1,8 @@
-package org.jbox2d.testbed.tests;
+package net.bcharris.brianball;
 
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import org.jbox2d.collision.CircleDef;
 import org.jbox2d.collision.MassData;
 import org.jbox2d.collision.PolygonDef;
@@ -57,6 +60,8 @@ public class BouncingBalls extends AbstractExample {
         public void selfDestruct(World w) {
             body.destroyShape(shape);
             w.destroyBody(body);
+            shape = null;
+            body = null;
         }
 
         public void updateInWorld(World w) {
@@ -81,7 +86,7 @@ public class BouncingBalls extends AbstractExample {
             shape = body.createShape(polyDef);
         }
     }
-    private GrowingWall w1, w2;
+    private List<GrowingWall> growingWalls = new ArrayList<GrowingWall>();
 
     public BouncingBalls(TestbedMain _parent) {
         super(_parent);
@@ -115,40 +120,21 @@ public class BouncingBalls extends AbstractExample {
 
     @Override
     public void eventlessClick(Vec2 p) {
-        if (w1 != null && w2 != null) {
-            return;
-        }
-
         Vec2 down = super.lastMouseDown;
         Vec2 up = super.mouseWorld;
 
+        if (up.x == down.x && up.y == down.y)
+            return;
+        
         float angle = normalizeRadians(up.atan2(down));
         float oppositeAngle = normalizeRadians(angle + PI);
 
-        if (w1 == null && w2 == null) {
-            w1 = new GrowingWall(down, angle);
-//            w1.width = 2; // To tell them apart during testing
-            w2 = new GrowingWall(down, oppositeAngle);
-            w1.partner = w2;
-            w2.partner = w1;
-        } else {
-            // Pick the angle that is furthest from the current wall.
-            float cur = w1 == null ? w2.angle : w1.angle;
-            float winner;
-            if (cur == angle) {
-                winner = angle;
-            } else if (cur == oppositeAngle) {
-                winner = oppositeAngle;
-            } else {
-                winner = radianDistance(cur, angle) > radianDistance(cur, oppositeAngle) ? angle : oppositeAngle;
-            }
-            GrowingWall newW = new GrowingWall(down, winner);
-            if (w1 == null) {
-                w1 = newW;
-            } else {
-                w2 = newW;
-            }
-        }
+        GrowingWall w1 = new GrowingWall(down, angle);
+        GrowingWall w2 = new GrowingWall(down, oppositeAngle);
+        w1.partner = w2;
+        w2.partner = w1;
+        growingWalls.add(w1);
+        growingWalls.add(w2);
     }
 
     @Override
@@ -156,13 +142,9 @@ public class BouncingBalls extends AbstractExample {
         super.preStep();
 
         // Need to grow any walls?
-        if (w1 != null) {
-            w1.grow();
-            w1.updateInWorld(m_world);
-        }
-        if (w2 != null) {
-            w2.grow();
-            w2.updateInWorld(m_world);
+        for (GrowingWall w : growingWalls) {
+            w.grow();
+            w.updateInWorld(m_world);
         }
     }
 
@@ -170,36 +152,35 @@ public class BouncingBalls extends AbstractExample {
     public void postStep() {
         super.postStep();
 
-        // Need to destroy any walls?
-        if (w1 != null && w1.destroyed) {
-            w1.selfDestruct(m_world);
-            w1 = null;
-        }
-        if (w2 != null && w2.destroyed) {
-            w2.selfDestruct(m_world);
-            w2 = null;
-        }
-
-        // Need to solidify any walls?
-        if (w1 != null && w1.solidified) {
-            makeSolidWall(w1);
-            w1 = null;
-        }
-        if (w2 != null && w2.solidified) {
-            makeSolidWall(w2);
-            w2 = null;
+        for (Iterator<GrowingWall> it = growingWalls.iterator(); it.hasNext();) {
+            GrowingWall w = it.next();
+            if (w.destroyed) {
+                // Need to destroy?
+                w.selfDestruct(m_world);
+                it.remove();
+            } else if (w.solidified) {
+                // Need to solidify?
+                makeSolidWall(w);
+                it.remove();
+            }
         }
     }
 
     @Override
     public void contact(ContactPoint point) {
         super.contact(point);
-        if (partnerCollision(point, w1) || partnerCollision(point, w2)) {
-            // Partners are allowed to contact
-            return;
+        for (GrowingWall w : growingWalls) {
+            if (partnerCollision(point, w))
+                continue;
+            if (point.shape1 == w.shape || point.shape2 == w.shape) {
+                Object id = point.shape1 == w.shape ? point.shape2.m_userData : point.shape1.m_userData;
+                if (id == SOLID_WALL_ID) {
+                    w.solidified = true;
+                } else if (id == BALL_ID) {
+                    w.destroyed = true;
+                }
+            }
         }
-        handleGrowingWallContact(w1, point);
-        handleGrowingWallContact(w2, point);
     }
 
     private static boolean partnerCollision(ContactPoint p, GrowingWall w) {
@@ -211,7 +192,7 @@ public class BouncingBalls extends AbstractExample {
 
     private void makeSolidWall(GrowingWall w) {
         w.shape.m_userData = SOLID_WALL_ID;
-        w.body.setLinearVelocity(new Vec2(0,0));
+        w.body.setLinearVelocity(new Vec2(0, 0));
         MassData md = new MassData();
         w.body.setMass(md);
     }
@@ -225,17 +206,6 @@ public class BouncingBalls extends AbstractExample {
         bd.angle = angle;
         bd.position = position;
         m_world.createBody(bd).createShape(sd);
-    }
-
-    private static void handleGrowingWallContact(GrowingWall w, ContactPoint cp) {
-        if (w != null && (cp.shape1 == w.shape || cp.shape2 == w.shape)) {
-            Object id = cp.shape1 == w.shape ? cp.shape2.m_userData : cp.shape1.m_userData;
-            if (id == SOLID_WALL_ID) {
-                w.solidified = true;
-            } else if (id == BALL_ID) {
-                w.destroyed = true;
-            }
-        }
     }
 
     private static float normalizeRadians(float radians) {
