@@ -120,6 +120,9 @@ public class BouncingBalls extends AbstractExample {
 
     @Override
     public void eventlessClick(Vec2 p) {
+        if (parent.mouseButton != parent.LEFT)
+            return;
+        
         Vec2 down = super.lastMouseDown;
         Vec2 up = super.mouseWorld;
 
