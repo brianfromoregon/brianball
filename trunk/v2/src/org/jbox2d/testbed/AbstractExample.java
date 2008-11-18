@@ -565,10 +565,9 @@ public abstract class AbstractExample {
             somethingHappened = true;
         	completeBombSpawn();
         }
-        if (somethingHappened == false)
-        {
+        if (somethingHappened == false) {
             eventlessClick(lastMouseDown);
-    }
+        }
     }
 
     protected void eventlessClick(Vec2 p)
