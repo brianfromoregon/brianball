@@ -46,16 +46,16 @@ public class BrianBallModel extends Observable {
         frozen = true;
         score=0;
         try {
-            levelCompleteURL = new URL("file:"+ new File(".").getCanonicalPath()+"/"+"lc.bri");
-            startURL = new URL("file:"+ new File(".").getCanonicalPath()+"/"+"s.bri");
-            ballHitURL = new URL("file:"+ new File(".").getCanonicalPath()+"/"+"bh.bri");
-            newWallHitURL = new URL("file:"+ new File(".").getCanonicalPath()+"/"+"wh.bri");
+            levelCompleteURL = getClass().getResource("lc.bri");
+            startURL = getClass().getResource("s.bri");
+            ballHitURL = getClass().getResource("bh.bri");
+            newWallHitURL = getClass().getResource("wh.bri");
             ballHit = Applet.newAudioClip(ballHitURL);
             newWallHit = Applet.newAudioClip(newWallHitURL);
             start = Applet.newAudioClip(startURL);
             levelComplete = Applet.newAudioClip(levelCompleteURL);
-        } catch (Exception e) {
-            System.out.println(e.toString());
+        } catch (Throwable e) {
+            e.printStackTrace();
         }
         file = new File("hs.bri");
         try {
@@ -68,7 +68,7 @@ public class BrianBallModel extends Observable {
                 line = in.readLine();
             }
             in.close();
-        } catch (IOException e) { System.out.println(e.toString()); }
+        } catch (Throwable e) { e.printStackTrace(); }
     }
     public boolean scoreMakesList() {
         boolean makesIt = false;

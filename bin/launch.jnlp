@@ -20,4 +20,7 @@
     <application-desc main-class="BrianBall">
 
     </application-desc>
+	<security>
+    <all-permissions/>
+    </security>
 </jnlp>
